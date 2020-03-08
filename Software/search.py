@@ -8,17 +8,33 @@ GRAPH_URL="http://192.168.0.19:7200/repositories/company_ownership_ontology"
 graphInterface=ontology_wrapper.Interface(GRAPH_URL)
 graphInterface.connectToGraph(graphExecutable=GRAPH_EXECUTABLE, graphURL=GRAPH_URL)
 
-# The fringe is the list of unexpanded nodes, when used the iterative deepening search it is implemented as a stack
-fringe=[]
-# The path is the list of people and companies returned to get from the start to the end goal
+# The fringe is a nested dictionary of expanded and unexpanded nodes, it is implemented as a dictionary of
+# string keys and another dictionary stating the parent and whether it has been explored
+node = {"parent":"",
+        "explored":False}
+fringe={"currentNode":node}
+# The path is the list of peaople and compnies used to get from the starting node to the goal node
 path=[]
 
 def bidierctionalSearch():
     pass
 
-def recursiveDLS(currentState, goalState, limit, search):
-    if currentState == goalState:
-        path.insert(0, currentState)
+def recursiveDLS(currentNode=str, goalNode=str, limit=int, search=bool):
+    """
+    Implement the recursive function of a deepening search
+    
+    Arguments:
+        currentNode {string} -- Denotes the name of the current node selected for expansion in the search (default: {str})
+        goalNode {string}    -- Denotes the name of the goal node of the search (default: {str})
+        limit {int}          -- The depth limit (how many layers down of expansion from this node left) (default: {int})
+        search {boolean}     -- Denotes which of the two searches being implemented we are in, used to know
+                                whether to add to the fringe or not (default: {bool})
+    
+    Returns:
+        results {boolean/string} -- returns whether the search was successful, the search failed or reached a cutoff point
+    """
+    if currentNode == goalNode:
+        path.insert(0, currentNode)
         return True
     elif limit==0:
         return "cutoff"
@@ -26,27 +42,39 @@ def recursiveDLS(currentState, goalState, limit, search):
         cuttoffOccurred=False
         # The goal node has not yet been found and we are within the current set limit so we
         # iterate deeper, if there are no children then cutoff never occurred --> failure is returned
-        children=graphInterface.queryOntology(currentState)
+        children=graphInterface.queryOntology(currentNode)
         for child in children:
-            result=recursiveDLS(child, goalState, limit-1, search)
+            result=recursiveDLS(child, goalNode, limit-1, search)
             # If the child is beyond the depth limit
             if result=="cutoff":
                 cuttoffOccurred=True
-            # If the child is the goal state, as the recursive function propagates up we add the current state to the front of the path
+            # If the child is the goal node, as the recursive function propagates up we add the current node to the front of the path
             elif result==True:
-                path.insert(0, currentState)
+                path.insert(0, currentNode)
                 return result
 
-        # If the goal state has not been found within the depth limit
+        # If the goal node has not been found within the depth limit
         if cuttoffOccurred:
             return "cutoff"
         # If the goal has not been found and we are within the depth limit
         else:
             return False
 
-def iterativeDeepening(currentState, goalState, maxDepth, search):
+def iterativeDeepening(currentNode=str, goalNode=str, maxDepth=int, search=bool):
+    """
+    This function is used to implement a iterative deepening search on the ontology, up to the maximum depth of the ontology.
+    This can be modified to be used in a bidirectional search
+    
+    Arguments:
+        currentNode {string} -- Denotes the name of the starting node of the search (default: {str})
+        goalNode {string}    -- Denotes the name of the goal node of the search (default: {str})
+        maxDepth {int}   -- The maximum depth of the ontology, retrieved from the ontology connections file (default: {int})
+        search {boolean}     -- Boolean variable used to indicate which of the two searches is currently being run (default: {bool})
+    
+    Returns:
+        result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
+    """
     for depth in range(0, maxDepth):
-        result = recursiveDLS(currentState, goalState, depth, search)
+        result = recursiveDLS(currentNode, goalNode, depth, search)
         if result != "cutoff":
             return result
-

@@ -68,8 +68,13 @@ class Interface:
 
 
     def queryOntology(self, name=str):
-        """
-        Method used to query the selected ontology using the python SPARQL interface
+        """Method used to query the selected ontology using the python SPARQL interface
+        
+        Keyword Arguments:
+            name {string} -- The name of the person we wish to find all connections to in the ontology (default: {str})
+        
+        Returns:
+            [[str, str]] -- List of the names and comapny they work for that are connected to the initial name given
         """
 
         self.sparql.setQuery('''
