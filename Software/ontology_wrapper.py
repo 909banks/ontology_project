@@ -1,5 +1,5 @@
-import pycurl
 import os
+import sys
 import socket, errno
 from SPARQLWrapper import SPARQLWrapper, CSV
 
@@ -60,7 +60,7 @@ class Interface:
 
                 else:
                     print("No ontology found")
-                    exit()
+                    sys.exit()
         
         self.graphURL=graphURL
         self.sparql=SPARQLWrapper(self.graphURL)
