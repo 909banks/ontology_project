@@ -13,28 +13,36 @@ graphInterface.connectToGraph(graphExecutable=GRAPH_EXECUTABLE, graphURL=GRAPH_U
 node = {"parent":"",
         "explored":False}
 fringe={"currentNode":node}
+
 # The path is the list of peaople and compnies used to get from the starting node to the goal node
+# The path will be ordered such that it is a list of three strings, as shown below:
+# Index     DirectorName        Company     Child's Company
+# 0         SULLIVAN DANIEL J   CTG         SNDR
+# 1         SULLIVAN DANIEL J   SNDR        
+# 1         ....                ...         ...
 path=[]
 
 def bidierctionalSearch():
     pass
 
-def recursiveDLS(currentNode=str, goalNode=str, limit=int, search=bool):
+def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=bool):
     """
     Implement the recursive function of a deepening search
     
     Arguments:
-        currentNode {string} -- Denotes the name of the current node selected for expansion in the search (default: {str})
-        goalNode {string}    -- Denotes the name of the goal node of the search (default: {str})
-        limit {int}          -- The depth limit (how many layers down of expansion from this node left) (default: {int})
-        search {boolean}     -- Denotes which of the two searches being implemented we are in, used to know
-                                whether to add to the fringe or not (default: {bool})
+        currentNode {str} -- Denotes the name of the current node selected for expansion in the search (default: {str})
+        goalNode {str}    -- Denotes the name of the goal node of the search (default: {str})
+        limit {int}       -- The depth limit (how many layers down of expansion from this node left) (default: {int})
+        search {bool}     -- Denotes which of the two searches being implemented we are in, used to know
+                             whether to add to the fringe or not (default: {bool})
     
     Returns:
-        results {boolean/string} -- returns whether the search was successful, the search failed or reached a cutoff point
+        results {bool/string} -- returns whether the search was successful, the search failed or reached a cutoff point
     """
-    if currentNode == goalNode:
-        path.insert(0, currentNode)
+
+
+    if currentNode["name"] == goalNode:
+        path.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
         return True
     elif limit==0:
         return "cutoff"
@@ -50,7 +58,7 @@ def recursiveDLS(currentNode=str, goalNode=str, limit=int, search=bool):
                 cuttoffOccurred=True
             # If the child is the goal node, as the recursive function propagates up we add the current node to the front of the path
             elif result==True:
-                path.insert(0, currentNode)
+                path.insert(0, [currentNode["name"], currentNode["companyID"], path[0][1]])
                 return result
 
         # If the goal node has not been found within the depth limit
@@ -63,7 +71,6 @@ def recursiveDLS(currentNode=str, goalNode=str, limit=int, search=bool):
 def iterativeDeepening(currentNode=str, goalNode=str, maxDepth=int, search=bool):
     """
     This function is used to implement a iterative deepening search on the ontology, up to the maximum depth of the ontology.
-    This can be modified to be used in a bidirectional search
     
     Arguments:
         currentNode {string} -- Denotes the name of the starting node of the search (default: {str})
@@ -74,7 +81,12 @@ def iterativeDeepening(currentNode=str, goalNode=str, maxDepth=int, search=bool)
     Returns:
         result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
     """
+    startNode={"name":currentNode, "companyID": "N/A"}
     for depth in range(0, maxDepth):
-        result = recursiveDLS(currentNode, goalNode, depth, search)
+        result = recursiveDLS(startNode, goalNode, depth, search)
         if result != "cutoff":
             return result
+
+iterativeDeepening("Jackson Spencer D.", "Shah Amit", 10, False)
+for x in path:
+    print (x)
