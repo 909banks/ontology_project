@@ -22,15 +22,53 @@ fringe={"currentNode":node}
 # 1         ....                ...         ...
 path=[]
 
-def bidierctionalSearch():
-    pass
+def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe=bool):
+    """
+    This function implements a breadth first search on the ontology
+    
+    Keyword Arguments:
+        currentNode {dict} -- the name of the starting node (default: {{str:str,str:str,str:str}})
+        goalNode {str} -- the name of the goal node (default: {str})
+        manageFringe {bool} -- parameter used to determine if this search will add the unexpanded nodes to the fringe used in the bidierctional search (default: {bool})
+
+    Returns:
+        results {bool} -- returns True if solution found, returns False if there is no bath between the nodes
+    """
+    # Check if the starting node is the goal node
+    if currentNode["name"] == goalNode:
+        return True
+    
+    frontier=[currentNode]
+    explored = {}
+
+    while True:
+        if frontier==[]:
+            return False
+        currentNode=frontier.pop()
+        explored[currentNode["name"]] = currentNode
+        children=graphInterface.queryOntology(currentNode)
+        for child in children:
+            child["parent"] = currentNode["name"]
+            if not(child in frontier or child["name"] in explored.keys()):
+                if child["name"] == goalNode:
+                    # How do we find the parent of the current node?
+                    path.insert(0, [child["name"], child["companyID"], "N/A"])
+                    parent = explored[child["parent"]]
+                    while parent != None:
+                        path.insert(0, [parent["name"], parent["companyID"], path[0][1]])
+                        if "parent" in (explored[parent["name"]].keys()):
+                            parent = explored[parent["parent"]]
+                        else:
+                            parent=None
+                    return True
+                frontier.insert(0, child)
 
 def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=bool):
     """
     Implement the recursive function of a deepening search
     
     Arguments:
-        currentNode {str} -- Denotes the name of the current node selected for expansion in the search (default: {str})
+        currentNode {dict} -- Denotes the name of the current node selected for expansion in the search (default: {str})
         goalNode {str}    -- Denotes the name of the goal node of the search (default: {str})
         limit {int}       -- The depth limit (how many layers down of expansion from this node left) (default: {int})
         search {bool}     -- Denotes which of the two searches being implemented we are in, used to know
@@ -39,8 +77,6 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
     Returns:
         results {bool/string} -- returns whether the search was successful, the search failed or reached a cutoff point
     """
-
-
     if currentNode["name"] == goalNode:
         path.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
         return True
@@ -87,6 +123,5 @@ def iterativeDeepening(currentNode=str, goalNode=str, maxDepth=int, search=bool)
         if result != "cutoff":
             return result
 
-iterativeDeepening("Jackson Spencer D.", "Shah Amit", 10, False)
-for x in path:
-    print (x)
+breadthFirstSearch({"name":"Jackson Spencer D.", "companyID":"N/A"}, "Shah Amit")
+print(path)
