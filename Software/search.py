@@ -1,5 +1,8 @@
 import ontology_wrapper
+from node import node
 import os
+import collections
+import time
 
 # The executable file needs to have extra quotationmarks to be able to be executed by the os.system command
 GRAPH_EXECUTABLE=r'"C:\Users\Dan\AppData\Local\GraphDB Free\GraphDB Free.exe"'
@@ -68,7 +71,7 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
     Implement the recursive function of a deepening search
     
     Arguments:
-        currentNode {dict} -- Denotes the name of the current node selected for expansion in the search (default: {str})
+        currentNode {dict} -- Denotes the name of the current node selected for expansion in the search (default: {{str:str, str:str}})
         goalNode {str}    -- Denotes the name of the goal node of the search (default: {str})
         limit {int}       -- The depth limit (how many layers down of expansion from this node left) (default: {int})
         search {bool}     -- Denotes which of the two searches being implemented we are in, used to know
@@ -104,24 +107,101 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
         else:
             return False
 
-def iterativeDeepening(currentNode=str, goalNode=str, maxDepth=int, search=bool):
+def iterativeDeepening(startNode=str, goalNode=str, maxDepth=int, manageFringe=bool):
     """
-    This function is used to implement a iterative deepening search on the ontology, up to the maximum depth of the ontology.
+    This function is used to implement a iterative deepening search on the ontology, 
+    up to the maximum depth of the ontology.
     
     Arguments:
-        currentNode {string} -- Denotes the name of the starting node of the search (default: {str})
-        goalNode {string}    -- Denotes the name of the goal node of the search (default: {str})
-        maxDepth {int}   -- The maximum depth of the ontology, retrieved from the ontology connections file (default: {int})
-        search {boolean}     -- Boolean variable used to indicate which of the two searches is currently being run (default: {bool})
+        startNode {str} -- Denotes the name of the starting node of the search (default: {str})
+        goalNode {str}  -- Denotes the name of the goal node of the search (default: {str})
+        maxDepth {int}  --  The maximum depth of the ontology, retrieved from the ontology connections file (default: {int})
+        manageFringe {boolean}  --  Boolean variable used to indicate which of the two searches is currently being run (default: {bool})
     
     Returns:
         result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
     """
-    startNode={"name":currentNode, "companyID": "N/A"}
+    startNode={"name":startNode, "companyID": "N/A"}
     for depth in range(0, maxDepth):
-        result = recursiveDLS(startNode, goalNode, depth, search)
+        result = recursiveDLS(startNode, goalNode, depth, manageFringe)
         if result != "cutoff":
             return result
 
-breadthFirstSearch({"name":"Jackson Spencer D.", "companyID":"N/A"}, "Shah Amit")
+def calcualteCost(node={str:str,str:str}):
+    """
+    This function calculates the estimated cost of the node that it is given, based on 
+    the number of intermediaries between it and the starting node and the connectivity 
+    of the node.
+    
+    Keyword Arguments:
+        node {dict} --  the name and company ID of the current node selected for cost 
+                        estimation (default: {{str:str, str:str}})
+    
+    Returns:
+        int -- The estimated cost of the node
+    """
+    connections=len(graphInterface.queryOntology(node))
+    cost = 1 - (connections/100)
+    return cost
+
+def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
+    """
+    Implement the recursive function of the best first search
+    
+    Keyword Arguments:
+        currentNode {dict}  --  Denotes the name of the current node selected for 
+                                expansion in the search (default: {{str:str, str:str}})
+        goalNode {str}      --  Denotes the name of the goal node of the search (default: {str})
+        fLimit {int}        --  The maximum cost of the node we are willing to expand (default: {int})
+
+    Returns:
+        result {boolean} -- Returns whether or not the search was successful, if it was 
+                            then the Path list will contain the optimal path between the nodes
+    """
+    # Check if the currentNode is the goal node
+    if currentNode["name"] == goalNode:
+        path.insert(0, [currentNode["name"], currentNode["compayID"], "N/A"] )
+        return True
+    
+    # Return all the people connected to the current node by one intermidiate company
+    successors=graphInterface.queryOntology(currentNode)
+    if successors == []:
+        return False
+    
+    # Set the cost of the sucessors to the maximum of their estimated cost and the cost of the current node
+    successorCost={}
+    for s in successors:
+        successorCost[s["name"]] = calcualteCost(s)
+    successorCost={k: v for k, v in sorted(successorCost.items(), key=lambda item: item[1])}
+
+    print(successors)
+    time.sleep(1)
+    input()
+    while True:
+        best, alternative = {k: successorCost[k] for k in list(successorCost)[:2]}
+        if successorCost[best] > fLimit:
+            return False
+        node=([d for d in successors if d["name"]==best])[0]
+        del successorCost[best]
+        result = RBFS(currentNode=node, goalNode=goalNode, fLimit=min(successorCost[alternative], fLimit))
+        if not(result == False):
+            return result
+
+
+def recursiveBestFirstSearch(startNode=str, goalNode=str, manageFringe=bool):
+    """
+    This function implements a version of the best first search algorithm, the base cost is 1 as there is no actual distance between any node and the goal node
+    
+    Keyword Arguments:
+        startNode {str} -- Denotes the name of the starting node of the search (default: {str})
+        goalNode {str} -- Denotes the name of the goal node of the search (default: {str})
+        manageFringe {bool} -- Boolean variable used to indicate if this search should be adding unexplored nodes to the fringe (default: {bool})
+
+    Returns:
+        result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
+    """
+    initialNode = {"name":startNode, "companyID":"N/A"}
+    return RBFS(initialNode, goalNode, fLimit=100000)
+
+
 print(path)
