@@ -12,7 +12,12 @@ class Interface:
         self.graphURL=url
         self.sparql=SPARQLWrapper(url)
         self.defaultPort=7200
+        self.expandedCompanies='"N/A"'
         
+    def resetExpandedCompanies(self):
+        """This method must be called between every search
+        """
+        self.expandedCompanies='"N/A"'
 
     def startGraphDB(self, graphExecutable):
         """
@@ -84,37 +89,28 @@ class Interface:
         results=[]
         # Get the companies that the current person works at
         # Excluding the parent company we found the from
-        if currentNode["companyID"]=="N/A":
-            query = Template("""
-            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-            PREFIX york: <http://york.ac.uk/>
-            SELECT ?company ?companyID 
-            WHERE {
-                ?person foaf:name '$name'.
-                ?person york:worksat ?company.
-                ?company york:tradingsymbol ?companyID.
-            } limit 100
-            """)
-    
-        else:
-            query = Template("""
-            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-            PREFIX york: <http://york.ac.uk/>
-            SELECT ?company ?companyID 
-            WHERE { 
-                ?person foaf:name '$name'.
-                ?person york:worksat ?company.
-                ?company york:tradingsymbol ?companyID.
-                FILTER (?companyID != '$cID')
-            } limit 100 
-            """)
-        self.sparql.setQuery(query.substitute(name=currentNode["name"], cID=currentNode["companyID"]))
+
+        # Modify so that the filter is for all explored companies
+        query = Template("""
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        PREFIX york: <http://york.ac.uk/>
+        SELECT ?company ?companyID 
+        WHERE { 
+            ?person foaf:name "$name".
+            ?person york:worksat ?company.
+            ?company york:tradingsymbol ?companyID.
+            FILTER (?companyID NOT IN ($cID))
+        } limit 100  
+        """)
+        self.sparql.setQuery(query.substitute(name=currentNode["name"], cID=self.expandedCompanies))
         csvResults = self.sparql.queryAndConvert().decode().splitlines()
         x=csv.reader(csvResults, delimiter=',')
         companyResults=list(x)[1:]
 
         # Get the names of the people that work at the same companies, excluding the current person
         for company in companyResults:
+            self.expandedCompanies += ', "' + company[1] + '"'
+
             query = Template("""
                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
                 PREFIX york: <http://york.ac.uk/>
@@ -123,13 +119,14 @@ class Interface:
                     ?person york:worksat <$company>.
                     ?person foaf:name ?name.
                     MINUS {
-                        ?person foaf:name '$name'
+                        ?person foaf:name "$name"
                     }.
                 } limit 100
             """)
             self.sparql.setQuery(query.substitute(company=company[0], name=currentNode["name"]))
             nameResults = self.sparql.queryAndConvert().decode().splitlines()[1:]
             for name in nameResults:
+                name=name.replace('"','')
                 temp = {"name":name, "companyID": company[1]}
                 results.append(temp)
 
