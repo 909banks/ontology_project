@@ -1,4 +1,5 @@
 import ontology_wrapper
+import file_interface
 from node import node
 import os
 import collections
@@ -187,7 +188,6 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
         if not(result == False):
             return result
 
-
 def recursiveBestFirstSearch(startNode=str, goalNode=str, manageFringe=bool):
     """
     This function implements a version of the best first search algorithm, the base cost is 1 as there is no actual distance between any node and the goal node
@@ -203,5 +203,22 @@ def recursiveBestFirstSearch(startNode=str, goalNode=str, manageFringe=bool):
     initialNode = {"name":startNode, "companyID":"N/A"}
     return RBFS(initialNode, goalNode, fLimit=100000)
 
+def findFrequencies():
+    global path
+    names=file_interface.getOntologyNames()
+    connections={}
+    startName="MARTIN SANDRA J."
+    for goalName in names:
+        if startName != goalName:
+            iterativeDeepening(startNode=startName, goalNode=goalName, maxDepth=1000000, manageFringe=False)
+            graphInterface.resetExpandedCompanies()
+            if len(path) in connections.keys():
+                connections[len(path)] += 1
+            else:
+                connections[len(path)] = 1
+            path=[]
+    
+    file_interface.writeOntologyConnections(connections)
 
+findFrequencies()
 print(path)
