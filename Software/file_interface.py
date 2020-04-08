@@ -3,6 +3,7 @@ import os
 
 PATH_FILE = "search_path.csv"
 ONTOLOGY_CONNECTIONS = "ontology_details.csv"
+NAMES_FILE = "ontology-names.csv"
 
 def writePath(pathArray:[[str,str,str]]):
     '''
@@ -31,7 +32,7 @@ def writePath(pathArray:[[str,str,str]]):
         for entity in pathArray:
             pathWriter.writerow([entity[0],entity[1],entity[2]])
 
-def writeOntologyConnections(relationships:[]):
+def writeOntologyConnections(relationships:{}):
     '''
     Function used to define the types of relationships within the ontology, this data
     will be used to find the mean average number of intermediaries and discern if our
@@ -53,5 +54,14 @@ def writeOntologyConnections(relationships:[]):
     ## Write the data to the file, describing the types of relationships within the ontology
     with open(ONTOLOGY_CONNECTIONS, mode='w',newline='') as connectionsFile:
         relationshipWriter=csv.writer(ONTOLOGY_CONNECTIONS,delimiter=',')
-        for i in range(1, len(relationships)):
-            relationshipWriter.writerow(i, relationships[i])
+        for intermediaries in relationships.keys():
+            relationshipWriter.writerow(intermediaries, relationships[intermediaries])
+
+def getOntologyNames():
+    names = []
+    with open(NAMES_FILE, mode='r') as pathFile:
+        nameReader=csv.reader(pathFile,delimiter=',')
+        for row in nameReader:
+            if row[0] != "name":
+                names.append(row[0])
+    return names
