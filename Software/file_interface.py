@@ -44,18 +44,12 @@ def writeOntologyConnections(relationships:{}):
     Returns:
     None
     '''
-    ## Check if the ontology connections file exists
-    ## If not write the correct header information
-    if not os.path.exists(ONTOLOGY_CONNECTIONS):
-        with open(ONTOLOGY_CONNECTIONS, mode='w',newline='') as connectionsFile:
-            headerWriter=csv.writer(connectionsFile,delimiter=',')
-            headerWriter.writerow("Number of intermediaries", "Relationships with X intermediaries")
-    
     ## Write the data to the file, describing the types of relationships within the ontology
-    with open(ONTOLOGY_CONNECTIONS, mode='w',newline='') as connectionsFile:
-        relationshipWriter=csv.writer(ONTOLOGY_CONNECTIONS,delimiter=',')
+    with open(ONTOLOGY_CONNECTIONS, mode='w+',newline='') as connectionsFile:
+        relationshipWriter=csv.writer(connectionsFile,delimiter=',')
+        relationshipWriter.writerow(["Number of intermediaries", "Relationships with X intermediaries"])
         for intermediaries in relationships.keys():
-            relationshipWriter.writerow(intermediaries, relationships[intermediaries])
+            relationshipWriter.writerow([intermediaries, relationships[intermediaries]])
 
 def getOntologyNames():
     names = []

@@ -1,5 +1,4 @@
 import os
-import sys
 import socket, errno
 import csv
 from SPARQLWrapper import SPARQLWrapper, CSV
@@ -75,7 +74,6 @@ class Interface:
         self.sparql=SPARQLWrapper(self.graphURL)
         return True
 
-
     def queryOntology(self, currentNode={str:str, str:str}):
         """Method used to query the selected ontology using the python SPARQL interface
         
@@ -132,6 +130,3 @@ class Interface:
 
         # Return a list of dictionaries [ {"name":people names, "companyID":parent company id}, ...]
         return results
-
-    def processQueryResults(self, results=[str]):
-        pass

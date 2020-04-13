@@ -4,6 +4,7 @@ from node import node
 import os
 import collections
 import time
+import random
 
 # The executable file needs to have extra quotationmarks to be able to be executed by the os.system command
 GRAPH_EXECUTABLE=r'"C:\Users\Dan\AppData\Local\GraphDB Free\GraphDB Free.exe"'
@@ -175,9 +176,7 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
         successorCost[s["name"]] = calcualteCost(s)
     successorCost={k: v for k, v in sorted(successorCost.items(), key=lambda item: item[1])}
 
-    print(successors)
     time.sleep(1)
-    input()
     while True:
         best, alternative = {k: successorCost[k] for k in list(successorCost)[:2]}
         if successorCost[best] > fLimit:
@@ -207,8 +206,9 @@ def findFrequencies():
     global path
     names=file_interface.getOntologyNames()
     connections={}
-    startName="MARTIN SANDRA J."
-    for goalName in names:
+    for i in range(0,10000):
+        startName=names[random.randint(0, len(names)-1)]
+        goalName=names[random.randint(0, len(names)-1)]
         if startName != goalName:
             iterativeDeepening(startNode=startName, goalNode=goalName, maxDepth=1000000, manageFringe=False)
             graphInterface.resetExpandedCompanies()
@@ -217,8 +217,7 @@ def findFrequencies():
             else:
                 connections[len(path)] = 1
             path=[]
-    
+        print(i)
     file_interface.writeOntologyConnections(connections)
 
 findFrequencies()
-print(path)
