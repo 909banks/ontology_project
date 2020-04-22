@@ -11,7 +11,7 @@ class Interface:
         self.graphURL=url
         self.sparql=SPARQLWrapper(url)
         self.defaultPort=7200
-        self.expandedCompanies='"N/A"'
+        self.expandedCompanies='""'
         
     def resetExpandedCompanies(self):
         """This method must be called between every search
@@ -107,7 +107,7 @@ class Interface:
 
         # Get the names of the people that work at the same companies, excluding the current person
         for company in companyResults:
-            self.expandedCompanies += ', "' + company[1] + '"'
+            self.expandedCompanies += ', "' + company[1].replace('"', '') + '"'
 
             query = Template("""
                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
