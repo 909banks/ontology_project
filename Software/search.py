@@ -1,10 +1,10 @@
 import ontology_wrapper
 import file_interface
-from node import node
 import os
 import collections
 import time
 import random
+import threading
 
 # The executable file needs to have extra quotationmarks to be able to be executed by the os.system command
 GRAPH_EXECUTABLE=r'"C:\Users\Dan\AppData\Local\GraphDB Free\GraphDB Free.exe"'
@@ -26,6 +26,9 @@ fringe={"currentNode":node}
 # 1         SULLIVAN DANIEL J   SNDR        
 # 1         ....                ...         ...
 path=[]
+
+# Create a threading lock for use when the search needs to query the ontology
+ontologyLock = threading.Lock()
 
 def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe=bool):
     """
@@ -51,12 +54,19 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
             return False
         currentNode=frontier.pop()
         explored[currentNode["name"]] = currentNode
+
+        # Aquire the ontology lock and return all the directors connected to the current node by one intermediate company
+        ontologyLock.acquire()
         children=graphInterface.queryOntology(currentNode)
+        ontologyLock.release()
+
         for child in children:
             child["parent"] = currentNode["name"]
+
+            # Only check the child nodes if we have not previously explored them
             if not(child in frontier or child["name"] in explored.keys()):
                 if child["name"] == goalNode:
-                    # How do we find the parent of the current node?
+                    # The goal node has been found, create the path from the goal node back to the start node
                     path.insert(0, [child["name"], child["companyID"], "N/A"])
                     parent = explored[child["parent"]]
                     while parent != None:
@@ -66,6 +76,8 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
                         else:
                             parent=None
                     return True
+                
+                # If not the goal node, add the child to the front of the frontier
                 frontier.insert(0, child)
 
 def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=bool):
@@ -91,7 +103,9 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
         cuttoffOccurred=False
         # The goal node has not yet been found and we are within the current set limit so we
         # iterate deeper, if there are no children then cutoff never occurred --> failure is returned
+        ontologyLock.acquire()
         children=graphInterface.queryOntology(currentNode)
+        ontologyLock.release()
         for child in children:
             result=recursiveDLS(child, goalNode, limit-1, search)
             # If the child is beyond the depth limit
@@ -142,7 +156,11 @@ def calcualteCost(node={str:str,str:str}):
     Returns:
         int -- The estimated cost of the node
     """
+    # Aquire the ontology lock and get the connectivity of the next node
+    ontologyLock.acquire()
     connections=len(graphInterface.queryOntology(node))
+    ontologyLock.release()
+
     cost = 1 - (connections/100)
     return cost
 
@@ -165,8 +183,10 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
         path.insert(0, [currentNode["name"], currentNode["compayID"], "N/A"] )
         return True
     
-    # Return all the people connected to the current node by one intermidiate company
+    # Aquire the ontology locka and return all the people connected to the current node by one intermidiate company
+    ontologyLock.acquire()
     successors=graphInterface.queryOntology(currentNode)
+    ontologyLock.release()
     if successors == []:
         return False
     
@@ -206,7 +226,7 @@ def findFrequencies():
     global path
     names=file_interface.getOntologyNames()
     connections={}
-    for i in range(0,10000):
+    for _ in range(40000):
         startName=names[random.randint(0, len(names)-1)]
         goalName=names[random.randint(0, len(names)-1)]
         if startName != goalName:
@@ -217,7 +237,35 @@ def findFrequencies():
             else:
                 connections[len(path)] = 1
             path=[]
-        print(i)
     file_interface.writeOntologyConnections(connections)
 
-findFrequencies()
+def bidirectionalSearch():
+    """
+    The purpise of this function is to run two searches concurrently, one starting from the start node, the other from
+    the goal node. With an aim to meet in the middle, in order to reduce the execution time of the search.
+
+    At least one search must manage a fringe.
+    """    
+    global path
+    names=file_interface.getOntologyNames()
+    for _ in range(40000):
+        # Randomly select any two names from the ontology
+        startName=names[random.randint(0, len(names)-1)]
+        goalName=names[random.randint(0, len(names)-1)]
+
+        goalSate = {"name":goalName,
+                    "CompnayID":"N/A"}
+        # Start running two searches concurrently, with each search starting from the opposite end of the relationship
+        t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10, False])
+        t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
+
+        t1.start()
+        print("Start iterative")
+        t2.start()
+        print("Start breadth")
+        t1.join()
+        t2.join()
+        print(path)
+        path = []
+
+bidirectionalSearch()
