@@ -1,6 +1,7 @@
 import os
 import socket, errno
 import csv
+import bisect
 from SPARQLWrapper import SPARQLWrapper, CSV
 from string import Template
 
@@ -11,12 +12,12 @@ class Interface:
         self.graphURL=url
         self.sparql=SPARQLWrapper(url)
         self.defaultPort=7200
-        self.expandedCompanies='""'
+        self.expandedCompanies=[]
         
     def resetExpandedCompanies(self):
         """This method must be called between every search
         """
-        self.expandedCompanies='"N/A"'
+        self.expandedCompanies=[]
 
     def startGraphDB(self, graphExecutable):
         """
@@ -97,17 +98,19 @@ class Interface:
             ?person foaf:name "$name".
             ?person york:worksat ?company.
             ?company york:tradingsymbol ?companyID.
-            FILTER (?companyID NOT IN ($cID))
-        } limit 100  
+        }
         """)
-        self.sparql.setQuery(query.substitute(name=currentNode["name"], cID=self.expandedCompanies))
+        self.sparql.setQuery(query.substitute(name=currentNode["name"]))
         csvResults = self.sparql.queryAndConvert().decode().splitlines()
         x=csv.reader(csvResults, delimiter=',')
         companyResults=list(x)[1:]
-
+        for company in companyResults:
+            if company in self.expandedCompanies:
+                companyResults.remove(company)
+        
         # Get the names of the people that work at the same companies, excluding the current person
         for company in companyResults:
-            self.expandedCompanies += ', "' + company[1].replace('"', '') + '"'
+            bisect.insort(self.expandedCompanies, company)
 
             query = Template("""
                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
@@ -119,7 +122,7 @@ class Interface:
                     MINUS {
                         ?person foaf:name "$name"
                     }.
-                } limit 100
+                }
             """)
             self.sparql.setQuery(query.substitute(company=company[0], name=currentNode["name"]))
             nameResults = self.sparql.queryAndConvert().decode().splitlines()[1:]

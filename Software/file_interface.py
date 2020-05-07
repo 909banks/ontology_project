@@ -28,6 +28,7 @@ def writePath(pathArray:[[str,str,str]]):
     intermediaries=len(pathArray)
     with open(PATH_FILE, mode='w',newline='') as pathFile:
         pathWriter=csv.writer(pathFile,delimiter=',')
+        pathWriter.writerow()
         pathWriter.writerow(pathArray[0][0],"To", pathArray[intermediaries-1][0])
         for entity in pathArray:
             pathWriter.writerow([entity[0],entity[1],entity[2]])

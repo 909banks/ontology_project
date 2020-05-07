@@ -1,7 +1,6 @@
 import ontology_wrapper
 import file_interface
 import os
-import collections
 import time
 import random
 import threading
@@ -15,9 +14,10 @@ graphInterface.connectToGraph(graphExecutable=GRAPH_EXECUTABLE, graphURL=GRAPH_U
 
 # The fringe is a nested dictionary of expanded and unexpanded nodes, it is implemented as a dictionary of
 # string keys and another dictionary stating the parent and whether it has been explored
-node = {"parent":"",
+node = {"parentName":"",
+        "CompnayID" : "",
         "explored":False}
-fringe={"currentNode":node}
+fringe={"nodeName":node}
 
 # The path is the list of peaople and compnies used to get from the starting node to the goal node
 # The path will be ordered such that it is a list of three strings, as shown below:
@@ -54,17 +54,15 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
             return False
         currentNode=frontier.pop()
         explored[currentNode["name"]] = currentNode
-
         # Aquire the ontology lock and return all the directors connected to the current node by one intermediate company
         ontologyLock.acquire()
         children=graphInterface.queryOntology(currentNode)
         ontologyLock.release()
-
         for child in children:
             child["parent"] = currentNode["name"]
 
             # Only check the child nodes if we have not previously explored them
-            if not(child in frontier or child["name"] in explored.keys()):
+            if not(child["name"] in frontier or child["name"] in explored.keys()):
                 if child["name"] == goalNode:
                     # The goal node has been found, create the path from the goal node back to the start node
                     path.insert(0, [child["name"], child["companyID"], "N/A"])
@@ -196,7 +194,6 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
         successorCost[s["name"]] = calcualteCost(s)
     successorCost={k: v for k, v in sorted(successorCost.items(), key=lambda item: item[1])}
 
-    time.sleep(1)
     while True:
         best, alternative = {k: successorCost[k] for k in list(successorCost)[:2]}
         if successorCost[best] > fLimit:
@@ -246,26 +243,27 @@ def bidirectionalSearch():
 
     At least one search must manage a fringe.
     """    
+    time.sleep(10)
     global path
     names=file_interface.getOntologyNames()
-    for _ in range(40000):
+    for i in range(10000):
+        print("Execution " + str(i))
         # Randomly select any two names from the ontology
         startName=names[random.randint(0, len(names)-1)]
         goalName=names[random.randint(0, len(names)-1)]
-
+        print(startName + " --> " +goalName)
         goalSate = {"name":goalName,
-                    "CompnayID":"N/A"}
+                    "companyID":"N/A"}
         # Start running two searches concurrently, with each search starting from the opposite end of the relationship
-        t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10, False])
-        t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
-
+        t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10000, False])
+        #t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
         t1.start()
-        print("Start iterative")
-        t2.start()
-        print("Start breadth")
+        #t2.start()
         t1.join()
-        t2.join()
-        print(path)
+        #t2.join()
+        if path != []:
+            file_interface.writePath(path)
         path = []
+        graphInterface.resetExpandedCompanies()
 
 bidirectionalSearch()
