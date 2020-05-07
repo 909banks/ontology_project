@@ -245,25 +245,28 @@ def bidirectionalSearch():
     """    
     global path
     names=file_interface.getOntologyNames()
-    for i in range(100000):
-        print("Execution " + str(i))
-        # Randomly select any two names from the ontology
-        startName=names[random.randint(0, len(names)-1)]
-        goalName=names[random.randint(0, len(names)-1)]
-        if startName != goalName:
-            print(startName + " --> " +goalName)
-            goalSate = {"name":goalName,
-                        "companyID":"N/A"}
-            # Start running two searches concurrently, with each search starting from the opposite end of the relationship
-            t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10000, False])
-            #t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
-            t1.start()
-            #t2.start()
-            t1.join()
-            #t2.join()
-            if path != []:
-                file_interface.writePath(path)
-            path = []
-            graphInterface.resetExpandedCompanies()
+    while True:
+        for i in range(200000):
+            if i%7000 == 0:
+                time.sleep(30)
+            print("Execution " + str(i))
+            # Randomly select any two names from the ontology
+            startName=names[random.randint(0, len(names)-1)]
+            goalName=names[random.randint(0, len(names)-1)]
+            if startName != goalName:
+                print(startName + " --> " +goalName)
+                goalSate = {"name":goalName,
+                            "companyID":"N/A"}
+                # Start running two searches concurrently, with each search starting from the opposite end of the relationship
+                t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10000, False])
+                #t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
+                t1.start()
+                #t2.start()
+                t1.join()
+                #t2.join()
+                if len(path) > 2:
+                    file_interface.writePath(path)
+                path = []
+                graphInterface.resetExpandedCompanies()
 
 bidirectionalSearch()
