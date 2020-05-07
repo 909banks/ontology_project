@@ -20,18 +20,18 @@ def writePath(pathArray:[[str,str,str]]):
     if not os.path.exists(PATH_FILE):
         with open(PATH_FILE, mode='w',newline='') as pathFile:
             headerWriter=csv.writer(pathFile,delimiter=',')
-            headerWriter.writerow("Director", "Company Name", "Company Name 2")
+            headerWriter.writerow(["Director", "Company Name", "Company Name 2"])
 
     ## For each element found in the path from person1 to person2, write the
     ## name of the intermediary, the company they work at with the previous 
     ## connection, and the new company
     intermediaries=len(pathArray)
-    with open(PATH_FILE, mode='w',newline='') as pathFile:
+    with open(PATH_FILE, mode='a',newline='') as pathFile:
         pathWriter=csv.writer(pathFile,delimiter=',')
-        pathWriter.writerow()
-        pathWriter.writerow(pathArray[0][0],"To", pathArray[intermediaries-1][0])
+        pathWriter.writerow([pathArray[0][0],"To", pathArray[intermediaries-1][0]])
         for entity in pathArray:
             pathWriter.writerow([entity[0],entity[1],entity[2]])
+        pathWriter.writerow([])
 
 def writeOntologyConnections(relationships:{}):
     '''

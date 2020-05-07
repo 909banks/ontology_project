@@ -98,19 +98,20 @@ class Interface:
             ?person foaf:name "$name".
             ?person york:worksat ?company.
             ?company york:tradingsymbol ?companyID.
+            FILTER (?companyID NOT IN ('$CID')).
         }
         """)
-        self.sparql.setQuery(query.substitute(name=currentNode["name"]))
+        self.sparql.setQuery(query.substitute(name=currentNode["name"], CID=currentNode["companyID"]))
         csvResults = self.sparql.queryAndConvert().decode().splitlines()
         x=csv.reader(csvResults, delimiter=',')
         companyResults=list(x)[1:]
         for company in companyResults:
-            if company in self.expandedCompanies:
-                companyResults.remove(company)
+            if company[0] in self.expandedCompanies:
+                companyResults = list(filter(lambda a: a!=company, companyResults))
         
         # Get the names of the people that work at the same companies, excluding the current person
         for company in companyResults:
-            bisect.insort(self.expandedCompanies, company)
+            bisect.insort(self.expandedCompanies, company[0])
 
             query = Template("""
                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
