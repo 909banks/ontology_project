@@ -92,7 +92,6 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
     Returns:
         results {bool/string} -- returns whether the search was successful, the search failed or reached a cutoff point
     """
-    print(currentNode["name"], currentNode["companyID"])
     if currentNode["name"] == goalNode:
         path.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
         return True
