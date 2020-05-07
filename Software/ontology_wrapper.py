@@ -29,8 +29,6 @@ class Interface:
         # os.system execute, to be accessable for the os.path commands
         filePath=graphExecutable.replace('"','')
         if not os.path.exists(filePath) or not os.access(filePath, os.X_OK):
-            print(os.path.exists(filePath))
-            print(os.access(filePath, os.X_OK))
             raise OSError ("GraphDB not found at %s, please install and re-run this program" % (graphExecutable))
         os.system(graphExecutable)
 
