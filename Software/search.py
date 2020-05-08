@@ -9,14 +9,14 @@ import threading
 GRAPH_EXECUTABLE=r'"C:\Users\Dan\AppData\Local\GraphDB Free\GraphDB Free.exe"'
 GRAPH_URL="http://192.168.0.19:7200/repositories/company_ownership_ontology"
 
+# This is the utility interface for access to the ontology outside of the searches
 graphInterface=ontology_wrapper.Interface(GRAPH_URL)
 graphInterface.connectToGraph(graphExecutable=GRAPH_EXECUTABLE, graphURL=GRAPH_URL)
 
 # The fringe is a nested dictionary of expanded and unexpanded nodes, it is implemented as a dictionary of
 # string keys and another dictionary stating the parent and whether it has been explored
 node = {"parentName":"",
-        "CompnayID" : "",
-        "explored":False}
+        "companyID" : ""}
 fringe={"nodeName":node}
 
 # The path is the list of peaople and compnies used to get from the starting node to the goal node
@@ -29,8 +29,40 @@ path=[]
 
 # Create a threading lock for use when the search needs to query the ontology
 ontologyLock = threading.Lock()
+killLock = threading.Lock()
+killRequest = 0
 
-def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe=bool):
+def calcualteCost(node={str:str,str:str}):
+    """
+    This function calculates the estimated cost of the node that it is given, based on 
+    the number of intermediaries between it and the starting node and the connectivity 
+    of the node. This function uses the utility graph interface, so as not to interfere
+    with the other searches expanded companies and filtering in place
+    
+    Keyword Arguments:
+        node {dict} --  the name and company ID of the current node selected for cost 
+                        estimation (default: {{str:str, str:str}})
+    
+    Returns:
+        int -- The estimated cost of the node
+    """
+    # Aquire the ontology lock and get the connectivity of the next node
+    ontologyLock.acquire()
+    graphInterface.resetExpandedCompanies()
+    connections=len(graphInterface.queryOntology(node))
+    ontologyLock.release()
+
+    cost = 1 - (connections/100)
+    return cost
+
+def constructPath(halfwayNode):
+    parent = fringe[halfwayNode["name"]]["parentName"]
+    while parent in fringe.keys():
+        path[-1][2] = fringe[parent]["companyID"]
+        path.append([ parent, fringe[parent]["companyID"], "N/A" ])
+        parent = fringe[parent]["parentName"]
+
+def breadthFirstSearch(ontologyInterface, currentNode={str:str,str:str}, goalNode=str, manageFringe=bool):
     """
     This function implements a breadth first search on the ontology
     
@@ -45,7 +77,6 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
     # Check if the starting node is the goal node
     if currentNode["name"] == goalNode:
         return True
-    
     frontier=[currentNode]
     explored = {}
 
@@ -56,7 +87,7 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
         explored[currentNode["name"]] = currentNode
         # Aquire the ontology lock and return all the directors connected to the current node by one intermediate company
         ontologyLock.acquire()
-        children=graphInterface.queryOntology(currentNode)
+        children=ontologyInterface.queryOntology(currentNode)
         ontologyLock.release()
         for child in children:
             child["parent"] = currentNode["name"]
@@ -78,7 +109,7 @@ def breadthFirstSearch(currentNode={str:str,str:str}, goalNode=str, manageFringe
                 # If not the goal node, add the child to the front of the frontier
                 frontier.insert(0, child)
 
-def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=bool):
+def recursiveDLS(ontologyInterface, currentNode={str:str,str:str}, goalNode=str, limit=int, manageFringe=bool):
     """
     Implement the recursive function of a deepening search
     
@@ -92,9 +123,29 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
     Returns:
         results {bool/string} -- returns whether the search was successful, the search failed or reached a cutoff point
     """
+    # Check if the other tread has finished the search
+    global killRequest
+    if killRequest == 1 or killLock.locked():
+        exit()
+
+    # Check if the current node is the goal node
     if currentNode["name"] == goalNode:
         path.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
         return True
+
+    # Check if the current node is in the fringe, if true then construct the path from the halfway point and return true
+    elif currentNode["name"] in fringe.keys() and manageFringe == False:
+        path.insert(0, [currentNode["name"], currentNode["companyID"], "temp"] )
+        constructPath(currentNode)
+        path[0][2] = path[1][1]
+
+        # Flag the kill request for the other thread
+        killLock.acquire()
+        killRequest = 1
+        killLock.release()
+        return True
+
+    # Check if we are at the cutoff
     elif limit==0:
         return "cutoff"
     else:
@@ -102,13 +153,22 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
         # The goal node has not yet been found and we are within the current set limit so we
         # iterate deeper, if there are no children then cutoff never occurred --> failure is returned
         ontologyLock.acquire()
-        children=graphInterface.queryOntology(currentNode)
+        children=ontologyInterface.queryOntology(currentNode)
         ontologyLock.release()
+
+        # Add the children to the fringe as they are discovered
+        if manageFringe:
+            for child in children:
+                fringe[child["name"]] = {"parentName":currentNode["name"],
+                                        "companyID": child["companyID"]}
+
+        # Process the discovered children
         for child in children:
-            result=recursiveDLS(child, goalNode, limit-1, search)
+            result=recursiveDLS(ontologyInterface, child, goalNode, limit-1, manageFringe)
             # If the child is beyond the depth limit
             if result=="cutoff":
                 cuttoffOccurred=True
+
             # If the child is the goal node, as the recursive function propagates up we add the current node to the front of the path
             elif result==True:
                 path.insert(0, [currentNode["name"], currentNode["companyID"], path[0][1]])
@@ -117,11 +177,12 @@ def recursiveDLS(currentNode={str:str,str:str}, goalNode=str, limit=int, search=
         # If the goal node has not been found within the depth limit
         if cuttoffOccurred:
             return "cutoff"
+
         # If the goal has not been found and we are within the depth limit
         else:
             return False
 
-def iterativeDeepening(startNode=str, goalNode=str, maxDepth=int, manageFringe=bool):
+def iterativeDeepening(ontologyInterface, startNode=str, goalNode=str, maxDepth=int, manageFringe=bool):
     """
     This function is used to implement a iterative deepening search on the ontology, 
     up to the maximum depth of the ontology.
@@ -135,34 +196,20 @@ def iterativeDeepening(startNode=str, goalNode=str, maxDepth=int, manageFringe=b
     Returns:
         result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
     """
+    # If this search is managing the fringe, add the starting node to the fringe
+    if manageFringe:
+        fringe[startNode] = {"parentName": "",
+                            "compnayID": "N/A"}
+
     startNode={"name":startNode, "companyID": "N/A"}
-    for depth in range(0, maxDepth):
-        result = recursiveDLS(startNode, goalNode, depth, manageFringe)
+    for depth in range(1, maxDepth):
+        result = recursiveDLS(ontologyInterface, startNode, goalNode, depth, manageFringe)
         if result != "cutoff":
             return result
+        # Need to reset the expanded companies at each iteration
+        ontologyInterface.resetExpandedCompanies()
 
-def calcualteCost(node={str:str,str:str}):
-    """
-    This function calculates the estimated cost of the node that it is given, based on 
-    the number of intermediaries between it and the starting node and the connectivity 
-    of the node.
-    
-    Keyword Arguments:
-        node {dict} --  the name and company ID of the current node selected for cost 
-                        estimation (default: {{str:str, str:str}})
-    
-    Returns:
-        int -- The estimated cost of the node
-    """
-    # Aquire the ontology lock and get the connectivity of the next node
-    ontologyLock.acquire()
-    connections=len(graphInterface.queryOntology(node))
-    ontologyLock.release()
-
-    cost = 1 - (connections/100)
-    return cost
-
-def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
+def RBFS(ontologyInterface, currentNode={str:str, str:str}, goalNode=str, fLimit=int):
     """
     Implement the recursive function of the best first search
     
@@ -183,7 +230,7 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
     
     # Aquire the ontology locka and return all the people connected to the current node by one intermidiate company
     ontologyLock.acquire()
-    successors=graphInterface.queryOntology(currentNode)
+    successors=ontologyInterface.queryOntology(currentNode)
     ontologyLock.release()
     if successors == []:
         return False
@@ -200,41 +247,25 @@ def RBFS(currentNode={str:str, str:str}, goalNode=str, fLimit=int):
             return False
         node=([d for d in successors if d["name"]==best])[0]
         del successorCost[best]
-        result = RBFS(currentNode=node, goalNode=goalNode, fLimit=min(successorCost[alternative], fLimit))
+        result = RBFS(ontologyInterface, currentNode=node, goalNode=goalNode, fLimit=min(successorCost[alternative], fLimit))
         if not(result == False):
             return result
 
-def recursiveBestFirstSearch(startNode=str, goalNode=str, manageFringe=bool):
+def recursiveBestFirstSearch(ontologyInterface, startNode=str, goalNode=str, fLimit=int, manageFringe=bool):
     """
     This function implements a version of the best first search algorithm, the base cost is 1 as there is no actual distance between any node and the goal node
     
     Keyword Arguments:
         startNode {str} -- Denotes the name of the starting node of the search (default: {str})
         goalNode {str} -- Denotes the name of the goal node of the search (default: {str})
+        fLimit {int} -- The Maximum cost of a node that we are willing to expand (default: {int})
         manageFringe {bool} -- Boolean variable used to indicate if this search should be adding unexplored nodes to the fringe (default: {bool})
 
     Returns:
         result {boolean} -- Returns whether or not the search was successful, if it was then the Path list will contain the optimal path
     """
     initialNode = {"name":startNode, "companyID":"N/A"}
-    return RBFS(initialNode, goalNode, fLimit=100000)
-
-def findFrequencies():
-    global path
-    names=file_interface.getOntologyNames()
-    connections={}
-    for _ in range(40000):
-        startName=names[random.randint(0, len(names)-1)]
-        goalName=names[random.randint(0, len(names)-1)]
-        if startName != goalName:
-            iterativeDeepening(startNode=startName, goalNode=goalName, maxDepth=1000000, manageFringe=False)
-            graphInterface.resetExpandedCompanies()
-            if len(path) in connections.keys():
-                connections[len(path)] += 1
-            else:
-                connections[len(path)] = 1
-            path=[]
-    file_interface.writeOntologyConnections(connections)
+    return RBFS(ontologyInterface, initialNode, goalNode, fLimit=100000)
 
 def bidirectionalSearch():
     """
@@ -242,31 +273,33 @@ def bidirectionalSearch():
     the goal node. With an aim to meet in the middle, in order to reduce the execution time of the search.
 
     At least one search must manage a fringe.
-    """    
+    """
     global path
-    names=file_interface.getOntologyNames()
-    while True:
-        for i in range(200000):
-            if i%7000 == 0:
-                time.sleep(30)
-            print("Execution " + str(i))
-            # Randomly select any two names from the ontology
-            startName=names[random.randint(0, len(names)-1)]
-            goalName=names[random.randint(0, len(names)-1)]
-            if startName != goalName:
-                print(startName + " --> " +goalName)
-                goalSate = {"name":goalName,
-                            "companyID":"N/A"}
-                # Start running two searches concurrently, with each search starting from the opposite end of the relationship
-                t1 = threading.Thread(target=iterativeDeepening, args=[startName, goalName, 10000, False])
-                #t2 = threading.Thread(target=breadthFirstSearch, args=[goalSate, startName, True])
-                t1.start()
-                #t2.start()
-                t1.join()
-                #t2.join()
-                if len(path) > 2:
-                    file_interface.writePath(path)
-                path = []
-                graphInterface.resetExpandedCompanies()
+
+    ontology_1=ontology_wrapper.Interface(GRAPH_URL)
+    ontology_1.connectToGraph(graphExecutable=GRAPH_EXECUTABLE, graphURL=GRAPH_URL)
+    ontology_2=ontology_wrapper.Interface(GRAPH_URL)
+
+    startName="Pyle Robert D"
+    names = file_interface.getOntologyNames()
+    for name in names:
+        goalName=name
+        if startName != goalName:
+            print(startName + " --> " +goalName)
+            # Start running two searches concurrently, with each search starting from the opposite end of the relationship
+            t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 100, False])
+            #t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalName, startName, 100, True])
+            t1.start()
+            #t2.start()
+            t1.join()
+            #t2.join()
+            if len(path) > 0:
+                file_interface.writePath(path)
+            else:
+                names.remove(name)
+            ontology_1.resetExpandedCompanies()
+            path = []
+            fringe = {}
+    print(names)
 
 bidirectionalSearch()
