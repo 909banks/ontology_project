@@ -54,8 +54,8 @@ def writeOntologyConnections(relationships:{}):
 
 def getOntologyNames():
     names = []
-    with open(NAMES_FILE, mode='r') as pathFile:
-        nameReader=csv.reader(pathFile,delimiter=',')
+    with open(NAMES_FILE, mode='r') as nameFile:
+        nameReader=csv.reader(nameFile,delimiter=',')
         for row in nameReader:
             if row[0] != "name":
                 names.append(row[0])

@@ -4,6 +4,7 @@ import os
 import time
 import random
 import threading
+import csv
 
 # The executable file needs to have extra quotationmarks to be able to be executed by the os.system command
 GRAPH_EXECUTABLE=r'"C:\Users\Dan\AppData\Local\GraphDB Free\GraphDB Free.exe"'
@@ -282,12 +283,14 @@ def bidirectionalSearch():
 
     startName="Pyle Robert D"
     names = file_interface.getOntologyNames()
-    for name in names:
-        goalName=name
+    for i in range(len(names)-1):
+        if i%20 == 0:
+            time.sleep(5)
+        goalName=names[i]
         if startName != goalName:
             print(startName + " --> " +goalName)
             # Start running two searches concurrently, with each search starting from the opposite end of the relationship
-            t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 100, False])
+            t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 4, False])
             #t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalName, startName, 100, True])
             t1.start()
             #t2.start()
@@ -295,11 +298,8 @@ def bidirectionalSearch():
             #t2.join()
             if len(path) > 0:
                 file_interface.writePath(path)
-            else:
-                names.remove(name)
             ontology_1.resetExpandedCompanies()
             path = []
             fringe = {}
-    print(names)
 
 bidirectionalSearch()
