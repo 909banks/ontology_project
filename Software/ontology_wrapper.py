@@ -18,6 +18,15 @@ class Interface:
         """This method must be called between every search
         """
         self.expandedCompanies=[]
+    
+    def setExpandedCompanies(self, companies):
+        """
+        Used in any search that needs to re-examine previously explored subtrees
+
+        Arguments:
+            companies {[str]} -- List of the companies of the parent nodes
+        """
+        self.expandedCompanies=companies
 
     def startGraphDB(self, graphExecutable):
         """
