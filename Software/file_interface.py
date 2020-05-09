@@ -4,6 +4,19 @@ import os
 PATH_FILE = "search_path.csv"
 ONTOLOGY_CONNECTIONS = "ontology_details.csv"
 NAMES_FILE = "ontology-names.csv"
+SEARCH_TIMES = "results.csv"
+
+def writeSearchTimes(searchA, searchB, averageTime):
+    ## Check if the path file exists
+    ## If not write in the header
+    if not os.path.exists(SEARCH_TIMES):
+        with open(SEARCH_TIMES, mode='w',newline='') as resultsFile:
+            headerWriter=csv.writer(resultsFile,delimiter=',')
+            headerWriter.writerow(["Search A", "Search B", "Average Time"])
+
+    with open(PATH_FILE, mode='a',newline='') as resultsFile:
+        resultsWriter=csv.writer(resultsFile,delimiter=',')
+        resultsWriter.writerow([searchA, searchB, averageTime])
 
 def writePath(pathArray:[[str,str,str]]):
     '''
