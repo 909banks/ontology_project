@@ -31,32 +31,6 @@ queryLock = threading.Lock()
 killLock = threading.Lock()
 killRequest = 0
 
-def calcualteCost(node={"name":"N/A","compnayID":"N/A"}, depth=0):
-    """
-    This function calculates the estimated cost of the node that it is given, based on 
-    the number of intermediaries between it and the starting node and the connectivity 
-    of the node. This function uses the utility graph interface, so as not to interfere
-    with the other searches expanded companies and filtering in place
-    
-    Keyword Arguments:
-        node {dict} --  the name and company ID of the current node selected for cost 
-                        estimation (default: {{str:str, str:str}})
-        depth {int} --  The current depth of the search (default: {int})
-    
-    Returns:
-        int -- The estimated cost of the node
-    """
-    # Aquire the ontology lock and get the connectivity of the next node
-    queryLock.acquire()
-    graphInterface.resetExpandedCompanies()
-    connections=len(graphInterface.queryOntology(node))
-    queryLock.release()
-    
-    depthFactor = (1 - depth/6) if depth < 6 else 1
-    connectionFactor = connections/50 
-    cost = 1 - connectionFactor
-    return cost
-
 def constructPath(halfwayNode):
     parent = fringe[halfwayNode["name"]]["parentName"]
     while parent in fringe.keys():
@@ -248,6 +222,32 @@ def iterativeDeepening(ontologyInterface, startNode="N/A", goalNode="N/A", maxDe
             return result
         # Need to reset the expanded companies at each iteration
         ontologyInterface.resetExpandedCompanies()
+
+def calcualteCost(node={"name":"N/A","compnayID":"N/A"}, depth=0):
+    """
+    This function calculates the estimated cost of the node that it is given, based on 
+    the number of intermediaries between it and the starting node and the connectivity 
+    of the node. This function uses the utility graph interface, so as not to interfere
+    with the other searches expanded companies and filtering in place
+    
+    Keyword Arguments:
+        node {dict} --  the name and company ID of the current node selected for cost 
+                        estimation (default: {{str:str, str:str}})
+        depth {int} --  The current depth of the search (default: {int})
+    
+    Returns:
+        int -- The estimated cost of the node
+    """
+    # Aquire the ontology lock and get the connectivity of the next node
+    queryLock.acquire()
+    graphInterface.resetExpandedCompanies()
+    connections=len(graphInterface.queryOntology(node))
+    queryLock.release()
+    
+    depthFactor = (1 - depth/6) if depth < 6 else 1
+    connectionFactor = connections/50 
+    cost = 1 - connectionFactor
+    return cost
 
 def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNode="N/A", fLimit=15, depth=0, parentCompanies=[], manageFringe=False):
     """
