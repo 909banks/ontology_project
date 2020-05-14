@@ -54,6 +54,11 @@ def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":
     global killRequest
     global possiblePath
     global paths
+    # Add the starting Node to the fringe
+    if manageFringe:
+        fringe[currentNode["name"]] = {"parentName": "",
+                            "parentCompany": "N/A"}
+
     # Check if the starting node is the goal node
     if currentNode["name"] == goalNode:
         return True
@@ -110,8 +115,8 @@ def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":
                         killLock.release()
 
                     # Construct the end of the path from the halfway node
-                    possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
-                    constructPath(currentNode)
+                    possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], fringe[child["name"]]["parentCompany"] ] )
+                    constructPath(child)
                     possiblePath[0][2] = possiblePath[1][1] 
 
                     # Construct the path from the halfway point back to the start node
@@ -346,8 +351,6 @@ def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNo
             successors=sorted(successors, key=lambda x: (x["cost"]))
         best = successors.pop(0)
         alternative=successors[0]
-        if best["cost"] > fLimit:
-            return False, best["cost"]
 
 def recursiveBestFirstSearch(ontologyInterface, startName="N/A", goalName="N/A", fLimit=100, manageFringe=False):
     """
@@ -365,7 +368,7 @@ def recursiveBestFirstSearch(ontologyInterface, startName="N/A", goalName="N/A",
     # If this search is managing the fringe, add the starting node to the fringe
     if manageFringe:
         fringe[startName] = {"parentName": "",
-                            "companyID": "N/A"}
+                            "parentCompany": "N/A"}
     initialNode = {"name":startName, "companyID":"N/A"}
     initialNode["cost"] = 0
     return RBFS(ontologyInterface, initialNode, goalName, fLimit=fLimit, depth=0, manageFringe=manageFringe)
@@ -399,41 +402,41 @@ def bidirectionalSearch():
         for _ in range(25):
             # Start running two searches concurrently, with each search starting from the opposite end of the relationship
             # Dual Iterative deepening searches
-            searchA = "IDS"
-            searchB = "IDS"
-            t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
-            t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalNames[i], startName, 10, True])
-            # # Dual breadth first searches
+            # searchA = "IDS"
+            # searchB = "IDS"
+            # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
+            # t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalNames[i], startName, 10, True])
+            # Dual breadth first searches
             # searchA = "BFS"
             # searchB = "BFS"
             # t1 = threading.Thread(target=breadthFirstSearch, args=[ontology_1, startNode, goalNames[i], False])
             # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
-            # # Dual best first searches
+            # Dual best first searches
             # searchA = "RBFS"
             # searchB = "RBFS"
             # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, False])
             # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, True])
-            # # 1 IDS 1 BFS
-            # searchA = "IDS"
-            # searchB = "BFS"
+            # 1 IDS 1 BFS
+            # searchA = "BFS"
+            # searchB = "IDS"
             # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
             # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
             # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, True])
             # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
-            # # 1 IDS 1 RBFS
-            # searchA = "IDS"
-            # searchB = "RBFS"
+            # 1 IDS 1 RBFS
+            # searchA = "RBFS"
+            # searchB = "IDS"
             # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
             # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, True])
             # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, True])
             # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, False])
             # # 1 BFS 1 RBFS
-            # searchA = "BFS"
-            # searchB = "RBFS"
+            searchA = "RBFS"
+            searchB = "BFS"
             # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, False])
             # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
-            # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, True])
-            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
+            t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, True])
+            t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
             startTime = time.time()
             t1.start()
             t2.start()
@@ -475,7 +478,7 @@ def singleSearch():
             # # Iterarative Deepening Search
             # iterativeDeepening(ontology_1, startName, goalNames[i], 10, False)
             # search = "IDS"
-            # # Breadth First Search
+            # Breadth First Search
             # breadthFirstSearch(ontology_1, startNode, goalNames[i], False)
             # search = "BFS"
             # Best First Search
@@ -491,5 +494,5 @@ def singleSearch():
         time.sleep(10)
 
 if __name__=="__main__":
-    bidirectionalSearch()
-    # singleSearch()
+    # bidirectionalSearch()
+    singleSearch()
