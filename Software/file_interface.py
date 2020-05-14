@@ -14,7 +14,7 @@ def writeSearchTimes(searchA, searchB, averageTime):
             headerWriter=csv.writer(resultsFile,delimiter=',')
             headerWriter.writerow(["Search A", "Search B", "Average Time"])
 
-    with open(PATH_FILE, mode='a',newline='') as resultsFile:
+    with open(SEARCH_TIMES, mode='a',newline='') as resultsFile:
         resultsWriter=csv.writer(resultsFile,delimiter=',')
         resultsWriter.writerow([searchA, searchB, averageTime])
 

@@ -24,7 +24,8 @@ fringe={"nodeName":node}
 # 0         SULLIVAN DANIEL J   CTG         SNDR
 # 1         SULLIVAN DANIEL J   SNDR        
 # 1         ....                ...         ...
-path=[]
+possiblePath=[]
+paths=[]
 
 # Create a threading lock for use when the search needs to query the ontology
 queryLock = threading.Lock()
@@ -34,9 +35,9 @@ killRequest = 0
 def constructPath(halfwayNode):
     parent = fringe[halfwayNode["name"]]["parentName"]
     while parent in fringe.keys():
-        path.append([ parent, path[-1][2], fringe[parent]["parentCompany"] ])
+        possiblePath.append([ parent, possiblePath[-1][2], fringe[parent]["parentCompany"] ])
         parent = fringe[parent]["parentName"]
-    path[-1][1] = path[-2][2]
+    possiblePath[-1][1] = possiblePath[-2][2]
 
 def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":"N/A"}, goalNode="N/A", manageFringe=False):
     """
@@ -51,6 +52,8 @@ def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":
         results {bool} -- returns True if solution found, returns False if there is no bath between the nodes
     """
     global killRequest
+    global possiblePath
+    global paths
     # Check if the starting node is the goal node
     if currentNode["name"] == goalNode:
         return True
@@ -87,10 +90,10 @@ def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":
             if not(child["name"] in frontier or child["name"] in explored.keys()):
                 if child["name"] == goalNode:
                     # The goal node has been found, create the path from the goal node back to the start node
-                    path.insert(0, [child["name"], child["companyID"], "N/A"])
+                    possiblePath.insert(0, [child["name"], child["companyID"], "N/A"])
                     parent = explored[child["parent"]]
                     while parent != None:
-                        path.insert(0, [parent["name"], parent["companyID"], path[0][1]])
+                        possiblePath.insert(0, [parent["name"], parent["companyID"], possiblePath[0][1]])
                         if "parent" in (explored[parent["name"]].keys()):
                             parent = explored[parent["parent"]]
                         else:
@@ -99,25 +102,28 @@ def breadthFirstSearch(ontologyInterface, currentNode={"name":"N/A","compnayID":
 
                 # Check if the current node is in the fringe, if true then construct the path from the halfway point and return true
                 elif child["name"] in fringe.keys() and manageFringe == False:
-                    # Flag the kill request for the other thread
-                    killLock.acquire()
-                    killRequest = 1
-                    killLock.release()
+                    # Kill the thread if we have already found a path
+                    if len(paths) > 1:
+                        # Flag the kill request for the other thread
+                        killLock.acquire()
+                        killRequest = 1
+                        killLock.release()
 
                     # Construct the end of the path from the halfway node
-                    path.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
+                    possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
                     constructPath(currentNode)
-                    path[0][2] = path[1][1]
+                    possiblePath[0][2] = possiblePath[1][1] 
 
                     # Construct the path from the halfway point back to the start node
                     parent = explored[child["parent"]]
                     while parent != None:
-                        path.insert(0, [parent["name"], parent["companyID"], path[0][1]])
+                        possiblePath.insert(0, [parent["name"], parent["companyID"], possiblePath[0][1]])
                         if "parent" in (explored[parent["name"]].keys()):
                             parent = explored[parent["parent"]]
                         else:
                             parent=None
-                    return True
+                    paths.append(possiblePath)
+                    possiblePath = []
                 
                 # If not the goal node, add the child to the front of the frontier
                 frontier.insert(0, child)
@@ -138,26 +144,30 @@ def recursiveDLS(ontologyInterface, currentNode={"name":"N/A","compnayID":"N/A"}
     """
     # Check if the other tread has finished the search
     global killRequest
+    global possiblePath
+    global paths
     if killRequest == 1 or killLock.locked():
         sys.exit()
 
     # Check if the current node is the goal node
     if currentNode["name"] == goalNode:
-        path.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
+        possiblePath.insert(0, [currentNode["name"], currentNode["companyID"],"N/A"])
         return True
 
     # Check if the current node is in the fringe, if true then construct the path from the halfway point and return true
     elif currentNode["name"] in fringe.keys() and manageFringe == False:
-        # Flag the kill request for the other thread
-        killLock.acquire()
-        killRequest = 1
-        killLock.release()
+        if len(paths) > 1:
+            # Flag the kill request for the other thread
+            killLock.acquire()
+            killRequest = 1
+            killLock.release()
 
         # Construct the end of the path from the other search
-        path.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
+        possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
         constructPath(currentNode)
-        path[0][2] = path[1][1]
-        return True
+        possiblePath[0][2] = possiblePath[1][1]
+        paths.append(possiblePath)
+        possiblePath=[]
 
     # Check if we are at the cutoff
     elif limit==0:
@@ -185,7 +195,7 @@ def recursiveDLS(ontologyInterface, currentNode={"name":"N/A","compnayID":"N/A"}
 
             # If the child is the goal node, as the recursive function propagates up we add the current node to the front of the path
             elif result==True:
-                path.insert(0, [currentNode["name"], currentNode["companyID"], path[0][1]])
+                possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], possiblePath[0][1]])
                 return result
 
         # If the goal node has not been found within the depth limit
@@ -246,7 +256,7 @@ def calcualteCost(node={"name":"N/A","compnayID":"N/A"}, depth=0):
     
     depthFactor = (1 - depth/6) if depth < 6 else 1
     connectionFactor = connections/50 
-    cost = 1 - connectionFactor
+    cost = 1 - 0.6*connectionFactor + 0.4*depthFactor
     return cost
 
 def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNode="N/A", fLimit=15, depth=0, parentCompanies=[], manageFringe=False):
@@ -266,12 +276,14 @@ def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNo
     """
     # Check if the other tread has finished the search
     global killRequest
+    global possiblePath
+    global paths
     if killRequest == 1 or killLock.locked():
         sys.exit()
 
     # Check if the currentNode is the goal node
     if currentNode["name"] == goalNode:
-        path.insert(0, [currentNode["name"], currentNode["companyID"], "N/A"] )
+        possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], "N/A"] )
         return True
     # Check if the current node is in the fringe, if true then construct the path 
     # from the halfway point and return true
@@ -282,12 +294,12 @@ def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNo
         killLock.release()
 
         # Construct the end of the path from the other search
-        path.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
+        possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], fringe[currentNode["name"]]["parentCompany"] ] )
         constructPath(currentNode)
-        path[0][2] = path[1][1]
-        return True
+        possiblePath[0][2] = possiblePath[1][1]
+        paths.append(possiblePath)
+        possiblePath=[]
     
-    print(currentNode)
     newList = parentCompanies[:]
     newList.append(currentNode["companyID"])
     ontologyInterface.setExpandedCompanies(newList)
@@ -325,17 +337,19 @@ def RBFS(ontologyInterface, currentNode={"name":"N/A","companyID":"N/A"}, goalNo
         # If the goal node has been found, generate the path as the search ascends
         #  the recursion calls
         if result == True:
-            path.insert(0, [currentNode["name"], currentNode["companyID"], path[0][1]] )
+            possiblePath.insert(0, [currentNode["name"], currentNode["companyID"], possiblePath[0][1]] )
             return True
-        else:
+        elif result[1] != 1000000:
             # Set best node cost to the cost of their children
             best["cost"] = result[1]
             successors.append(best)
             successors=sorted(successors, key=lambda x: (x["cost"]))
         best = successors.pop(0)
         alternative=successors[0]
+        if best["cost"] > fLimit:
+            return False, best["cost"]
 
-def recursiveBestFirstSearch(ontologyInterface, startName="N/A", goalName="N/A", fLimit=1000, manageFringe=False):
+def recursiveBestFirstSearch(ontologyInterface, startName="N/A", goalName="N/A", fLimit=100, manageFringe=False):
     """
     This function implements a version of the best first search algorithm, the base cost is 1 as there is no actual distance between any node and the goal node
     
@@ -350,11 +364,11 @@ def recursiveBestFirstSearch(ontologyInterface, startName="N/A", goalName="N/A",
     """
     # If this search is managing the fringe, add the starting node to the fringe
     if manageFringe:
-        fringe[startNode] = {"parentName": "",
+        fringe[startName] = {"parentName": "",
                             "companyID": "N/A"}
-    initialNode = {"name":startNode, "companyID":"N/A"}
+    initialNode = {"name":startName, "companyID":"N/A"}
     initialNode["cost"] = 0
-    return RBFS(ontologyInterface, initialNode, goalNode, fLimit=fLimit, depth=0, manageFringe=manageFringe)
+    return RBFS(ontologyInterface, initialNode, goalName, fLimit=fLimit, depth=0, manageFringe=manageFringe)
 
 def bidirectionalSearch():
     """
@@ -363,93 +377,119 @@ def bidirectionalSearch():
 
     At least one search must manage a fringe.
     """
-    global path
+    global possiblePath
+    global paths
     global killRequest
+    global fringe
     ontology_1=ontology_wrapper.Interface(GRAPH_URL)
     ontology_2=ontology_wrapper.Interface(GRAPH_URL)
     totalTime = 0
 
     startName = "Pyle Robert D"
-    goalName = "Sivaram Srinivasan"
+    goalNames = ["Wallace Mark E",
+            "WOLFE ROBERT H",
+            "WOOD PHOEBE A",
+            "WHITE MILES D",
+            "HERNANDEZ ENRIQUE JR",
+            "FABRIKANT CHARLES",
+            "WEBSTER STEVEN A"]
     startNode={"name" : startName,"companyID" : "N/A"}
-    goalNode={"name" : goalName,"companyID" : "N/A"}
-    for _ in range(50):
-        # Start running two searches concurrently, with each search starting from the opposite end of the relationship
-        # # Dual Iterative deepening searches
-        # searchA = "IDS"
-        # searchB = "IDS"
-        # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 10, False])
-        # t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalName, startName, 10, True])
-        # # Dual breadth first searches
-        # searchA = "BFS"
-        # searchB = "BFS"
-        # t1 = threading.Thread(target=breadthFirstSearch, args=[ontology_1, startNode, goalName, False])
-        # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
-        # # Dual best first searches
-        # searchA = "RBFS"
-        # searchB = "RBFS"
-        # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalName, 10, False])
-        # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalName, startName, 10, True])
-        # # 1 IDS 1 BFS
-        # searchA = "IDS"
-        # searchB = "BFS"
-        # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 10, False])
-        # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
-        # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 10, True])
-        # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
-        # # 1 IDS 1 RBFS
-        # searchA = "IDS"
-        # searchB = "RBFS"
-        # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 10, False])
-        # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalName, startName, 10, True])
-        # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalName, 10, True])
-        # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalName, startName, 10, False])
-        # # 1 BFS 1 RBFS
-        # searchA = "BFS"
-        # searchB = "RBFS"
-        # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalName, 10, False])
-        # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
-        # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalName, 10, True])
-        # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
-        startTime = time.time()
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-        totalTime += (time.time() - startTime)
-        print(path)
-        ontology_1.resetExpandedCompanies()
-        ontology_2.resetExpandedCompanies()
-        path = []
-        fringe = {}
-        killRequest=0
+    for i in range(0, len(goalNames)):
+        goalNode={"name" : goalNames[i],"companyID" : "N/A"}
+        for _ in range(25):
+            # Start running two searches concurrently, with each search starting from the opposite end of the relationship
+            # Dual Iterative deepening searches
+            searchA = "IDS"
+            searchB = "IDS"
+            t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
+            t2 = threading.Thread(target=iterativeDeepening, args=[ontology_2, goalNames[i], startName, 10, True])
+            # # Dual breadth first searches
+            # searchA = "BFS"
+            # searchB = "BFS"
+            # t1 = threading.Thread(target=breadthFirstSearch, args=[ontology_1, startNode, goalNames[i], False])
+            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
+            # # Dual best first searches
+            # searchA = "RBFS"
+            # searchB = "RBFS"
+            # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, False])
+            # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, True])
+            # # 1 IDS 1 BFS
+            # searchA = "IDS"
+            # searchB = "BFS"
+            # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
+            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
+            # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, True])
+            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
+            # # 1 IDS 1 RBFS
+            # searchA = "IDS"
+            # searchB = "RBFS"
+            # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, False])
+            # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, True])
+            # t1 = threading.Thread(target=iterativeDeepening, args=[ontology_1, startName, goalNames[i], 10, True])
+            # t2 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_2, goalNames[i], startName, 10, False])
+            # # 1 BFS 1 RBFS
+            # searchA = "BFS"
+            # searchB = "RBFS"
+            # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, False])
+            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, True])
+            # t1 = threading.Thread(target=recursiveBestFirstSearch, args=[ontology_1, startName, goalNames[i], 10, True])
+            # t2 = threading.Thread(target=breadthFirstSearch, args=[ontology_2, goalNode, startName, False])
+            startTime = time.time()
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+            totalTime += (time.time() - startTime)
+            paths.append(possiblePath)
+            ontology_1.resetExpandedCompanies()
+            ontology_2.resetExpandedCompanies()
+            possiblePath=[]
+            paths=[]
+            fringe={}
+            killRequest=0
 
-    averageTime = totalTime/50
-    file_interface.writeSearchTimes(searcha, searchB, averageTime)
+        averageTime = totalTime/25
+        file_interface.writeSearchTimes(searchA, searchB, averageTime)
+        time.sleep(10)
 
 def singleSearch():
-    global path
+    global paths
+    global possiblePath
+    global fringe
     ontology_1=ontology_wrapper.Interface(GRAPH_URL)
     totalTime = 0
     search = ""
     startName = "Pyle Robert D"
-    goalName = "Sivaram Srinivasan"
+    goalNames = ["Wallace Mark E",
+                "WOLFE ROBERT H",
+                "WOOD PHOEBE A",
+                "WHITE MILES D",
+                "HERNANDEZ ENRIQUE JR",
+                "FABRIKANT CHARLES",
+                "WEBSTER STEVEN A"]
     startNode={"name" : startName,"companyID" : "N/A"}
-    goalNode={"name" : goalName,"companyID" : "N/A"}
-    for _ in range(50):
-        startTime = time.time()
-        # # Iterarative Deepening Search
-        # iterativeDeepening(ontology_1, startName, goalName, 10, False)
-        # # Breadth First Search
-        # breadthFirstSearch(ontology_1, startNode, goalName, False)
-        # # Best First Search
-        # recursiveBestFirstSearch(ontology_1, startName, goalName, 10, False)
-        totalTime += (time.time() - startTime)
-        print(path)
-        ontology_1.resetExpandedCompanies()
-        path = []
-    averageTime = totalTime/50
-    file_interface.writeSearchTimes(search, "", averageTime)
+    goalNode={"name" : goalNames[0],"companyID" : "N/A"}
+    for i in range(0,len(goalNames)):
+        for _ in range(25):
+            startTime = time.time()
+            # # Iterarative Deepening Search
+            # iterativeDeepening(ontology_1, startName, goalNames[i], 10, False)
+            # search = "IDS"
+            # # Breadth First Search
+            # breadthFirstSearch(ontology_1, startNode, goalNames[i], False)
+            # search = "BFS"
+            # Best First Search
+            recursiveBestFirstSearch(ontology_1, startName, goalNames[i], 10, False)
+            search = "RBFS"
+            totalTime += (time.time() - startTime)
+            paths.append(possiblePath)
+            ontology_1.resetExpandedCompanies()
+            possiblePath=[]
+            paths = []
+        averageTime = totalTime/25
+        file_interface.writeSearchTimes(search, i+2, averageTime)
+        time.sleep(10)
 
 if __name__=="__main__":
     bidirectionalSearch()
+    # singleSearch()
